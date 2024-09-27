@@ -291,7 +291,7 @@ class SHA_Wc_To_Elastic {
 
     $params = array();
 
-    $product_size_type = apply_filters( 'sha_wc2el_product_size_type', 'single' );
+    sha_wc2el_product_image_size_type = apply_filters( 'sha_wc2el_product_image_size_type', 'single' );
 
     $args = array(
       'status'        => $this->_wp_allowed_product_statuses,
@@ -312,7 +312,7 @@ class SHA_Wc_To_Elastic {
       }
 
       $product_image = ( $product->get_image_id() )
-      	? wp_get_attachment_image_url( $product->get_image_id(), $product_size_type ) : '';
+      	? wp_get_attachment_image_url( $product->get_image_id(), sha_wc2el_product_image_size_type ) : '';
 
       $params['data']['body'][] = array(
         'index' => array(
