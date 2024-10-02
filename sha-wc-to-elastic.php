@@ -1,7 +1,7 @@
 <?php
 /*
  * Plugin Name:       WooCommerce To Elastic Product Indexer
- * Description:       WooCommerce Products Indexer to Elastic Search (WC2EL)
+ * Description:       WooCommerce Products to Elastic Search Indexer (WC2EL)
  * Version:           0.1.0
  * Author:            Andrew Sh
  * Text Domain:       sha-wc2el
@@ -13,32 +13,38 @@ if ( ! defined( 'ABSPATH' ) )  {
   exit;
 }
 
-class SHA_Wc_To_Elastic {
+class SHA_WC_To_Elastic {
 
-  private static $_instance;
+	private static $_instance;
 
-  protected $_plugin_name;
+	protected $_elastic_client;
 
-  protected $_plugin_file;
+	protected $_plugin_name;
+
+	protected $_plugin_file;
 
 	protected $_plugin_slug;
 
 	protected $_prefix;
 
-  protected $_elastic_settings = array();
+	protected $_elastic_settings = array();
 
-  protected $_elastic_settings_index = array();
+	protected $_elastic_settings_index = array();
+
+	protected $_allowed_index_actions = array( 'stat', 'create', 'update', 'delete', 'reindex' );
+
+	protected $_allowed_product_actions = array( 'stat', 'add', 'delete' );
 
 	protected $_wp_allowed_product_types = array();
 
-  protected $_wp_allowed_product_statuses = array();
+	protected $_wp_allowed_product_statuses = array();
 
 
 	// Instance of this class
   public static function getInstance() {
 
 		if ( ! isset( self::$_instance ) ) {
-			self::$_instance = new SHA_Wc_To_Elastic;
+			self::$_instance = new SHA_WC_To_Elastic;
 			self::$_instance->init();
 		}
 
@@ -49,7 +55,7 @@ class SHA_Wc_To_Elastic {
   public function init() {
 
     $this->init_variables();
-    $this->init_admin_hooks();
+    $this->init_hooks();
     $this->init_cli_support();
 	}
 
@@ -73,35 +79,35 @@ class SHA_Wc_To_Elastic {
     );
 
 		// Override default elastic settings
-    $this->_elastic_settings = apply_filters(
-    														'sha_wc2el_elastic_settings',
-    														 $default_elastic_settings
-    													 );
+    $this->_elastic_settings = apply_filters( 'sha_wc2el_elastic_settings', $default_elastic_settings );
 
 		// Shortlink for elastic index, which used many times in code below
     $this->_elastic_settings_index = array( 'index' => $this->_elastic_settings['index'] );
 
 		// Select only products with this types
-    $this->_wp_allowed_product_types = apply_filters(
-    																		 'sha_wc2el_allowed_product_types',
-    																		  array( 'simple' )
-    																	 );
+    $this->_wp_allowed_product_types = apply_filters( 'sha_wc2el_allowed_product_types', array( 'simple' ) );
 
 		// Select only products with this status
-    $this->_wp_allowed_product_statuses = apply_filters(
-    																			 'sha_wc2el_allowed_product_statuses',
-    																			  array( 'publish' )
-    																			);
+    $this->_wp_allowed_product_statuses = apply_filters( 'sha_wc2el_allowed_product_statuses', array( 'publish' ) );
   }
 
-	// Initing all admin actions and filters
-	private function init_admin_hooks() {
+	// Initing all actions
+	private function init_hooks() {
 
 		// Actions for reindex, rebuild and single product indexing
+
 		// usage do_action( 'wc2el_reindex_single_product', $product_id, $product );
     add_action( 'wc2el_reindex_single_product', array( $this, 'reindex_single_item' ), 10, 2 );
-    // usage do_action( 'wc2el_rebuild' );
-    add_action( 'wc2el_rebuild', array( $this, 'create_index' ) );
+
+    // usage do_action( 'wc2el_create' );
+    add_action( 'wc2el_create', array( $this, 'build_index' ) );
+
+    // usage do_action( 'wc2el_update' );
+    add_action( 'wc2el_update', array( $this, 'update_index' ) );
+
+    // usage do_action( 'wc2el_delete' );
+    add_action( 'wc2el_delete', array( $this, 'remove_index' ) );
+
     // usage do_action( 'wc2el_reindex' );
     add_action( 'wc2el_reindex', array( $this, 'reindex_all_elastic_items' ) );
 
@@ -121,32 +127,36 @@ class SHA_Wc_To_Elastic {
 					'shortdesc' => __( 'CLI for WooCommerce To Elastic plugin', 'sha-wc2el' ),
 					'synopsis'  => array(
 						array(
-							'type' => 'positional',
-							'name' => 'product|index',
-							'description' => __(
+							'type'				=> 'positional',
+							'name'				=> 'product|index',
+							'description'	=> __(
 								'Type of action. Allowed values are product and index with an extra args',
 								'sha-wc2el'
 							),
-							'optional' => false,
-							'repeating' => false,
+							'optional'		=> false,
+							'repeating'		=> false,
 						),
 						array(
-							'type' => 'positional',
-							'name' => 'stat,add,delete|stat,reindex,rebuild',
-							'description' => __( 'Type of action with index or product. Allowed values stat, add and delete (with ProductID as extra ergument) for product and stat, reindex and rebuild for index', 'sha-wc2el' ),
-							'optional' => false,
-							'repeating' => false
+							'type'				=> 'positional',
+							'name'				=> implode( ',', $this->_allowed_product_actions ) . '|' . implode( ',', $this->_allowed_index_actions ),
+							'description'	=> sprintf(
+																__( 'Type of action with index or product. Allowed values %s (with ProductID as extra ergument) for product and %s for index', 'sha-wc2el' ),
+																implode( ', ', $this->_allowed_product_actions ),
+																implode( ', ', $this->_allowed_index_actions )
+															),
+							'optional'		=> false,
+							'repeating'		=> false
 						),
 						array(
-							'type' => 'positional',
-							'name' => 'productID',
+							'type'				=> 'positional',
+							'name'				=> 'productID',
 							'description' => __( 'Product ID', 'sha-wc2el' ),
-							'optional' => true,
-							'repeating' => false
+							'optional'		=> true,
+							'repeating'		=> false
 						)
 					),
-					'when' => 'after_wp_load',
-					'longdesc' => __( '## EXAMPLES' . "\n\n" . 'wp wc2el product add 1012', 'sha-wc2el' ),
+					'when'			=> 'after_wp_load',
+					'longdesc' 	=> __( '## EXAMPLES' . "\n\n" . 'wp wc2el product add 1012', 'sha-wc2el' ),
 				)
     	);
     }
@@ -181,7 +191,6 @@ class SHA_Wc_To_Elastic {
     $params = $this->_elastic_settings_index;
 
     foreach ( $basic_properties as $prop => $type ) {
-			
 			$params['body']['mappings']['properties'][ $prop ] = array(
 				'type'	=> $type
 			);
@@ -192,48 +201,117 @@ class SHA_Wc_To_Elastic {
     return $params;
   }
 
-  // Reindex single elastic index item
-  public function create_index() {
+  // Create index
+  private function create_index() {
     
     $client = $this->get_elastic_connection();
 
     try {
-      if ( $client->indices()->exists( $this->_elastic_settings_index ) ) {
-        $client->indices()->delete( $this->_elastic_settings_index );
-      }
-    } catch ( Exception $e ) {
-      throw New Exception( $e->getMessage() );
-    }
-
-    try {
       $index_structure = $this->get_elastic_index_structure();
-      $client->indices()->create( $index_structure );
+
+			// If index exists, put mapping and settings
+			if ( $client->indices()->exists( $this->_elastic_settings_index ) ) {
+				throw New Exception(
+					sprintf(
+						__( 'Index with a name [%s] already exists. Try to rebuild index.', 'sha-wc2el' ),
+						$this->_elastic_settings['index']
+					)
+				);
+			} else {
+      	$client->indices()->create( $index_structure );
+			}
     } catch ( Exception $e ) {
       throw New Exception( $e->getMessage() );
     }
   }
 
+  // Update index
+  private function update_index() {
+    
+    $client = $this->get_elastic_connection();
+
+    try {
+      $index_structure = $this->get_elastic_index_structure();
+
+			// If index exists, put mapping and settings
+			if ( $client->indices()->exists( $this->_elastic_settings_index ) ) {
+				// If structure contain settings, put settings
+				if ( $this->akne( $index_structure, array( 'body', 'settings' ) ) ) {
+
+					// Non dynamic settings like anlysis needs closing index and open it after putting
+					$reopen_index = apply_filters( 'sha_wc2el_reopen_index', false );
+
+					if ( $reopen_index ) {
+						$client->indices()->close( $this->_elastic_settings_index );
+					}
+
+					$settings_data = $this->_elastic_settings_index;
+					$settings_data['body']['settings'] = $index_structure['body']['settings'];
+					$client->indices()->putSettings( $settings_data );
+
+					if ( $reopen_index ) {
+						$client->indices()->open( $this->_elastic_settings_index );
+					}
+				}
+
+
+				// If structure contain mappings, put mappings
+				if ( $this->akne( $index_structure, array( 'body', 'mappings' ) ) ) {
+					$mapping_data = $this->_elastic_settings_index;
+					$mapping_data['body']['_source'] = array( 'enabled' => true );
+					$mapping_data['body']['properties'] = $index_structure['body']['mappings']['properties'];
+					$client->indices()->putMapping( $mapping_data );
+				}
+			} else {
+      	$client->indices()->create( $index_structure );
+			}
+    } catch ( Exception $e ) {
+      throw New Exception( $e->getMessage() );
+    }
+  }
+
+  // Delete index
+  private function remove_index() {
+    
+    $client = $this->get_elastic_connection();
+
+		try {
+			if ( $client->indices()->exists( $this->_elastic_settings_index ) ) {
+				$client->indices()->delete( $this->_elastic_settings_index );
+			}
+		} catch ( Exception $e ) {
+			throw New Exception( $e->getMessage() );
+		}
+  }
+
+
+  // Build index (delete and create)
+  public function build_index() {
+		$this->create_index();
+	}
+
+  // Update index (change settings of existing index)
+  public function modify_index() {
+		$this->update_index();
+	}
+
+  // Delete index
+  public function delete_index() {
+		$this->remove_index();
+	}
+
   // Reindex single elastic index item
   public function reindex_single_item( $product_id, $product = false ) {
-      
-		// If product object isn't passed, tying to get it by id
-    if ( ! $product ) {
-      $product = wc_get_product( $product_id );
-    }
-
-		// If product not exists or not found, stopping indexing
-    if ( ! $product ) {
-      return;
-    }
 
 		// If product type isn't allowed, stopping indexing
     if ( ! in_array( $product->get_type(), $this->_wp_allowed_product_types ) ) {
-			return;
+      throw New Exception( __( 'Product type is not allowed', 'sha-wc2el' ) );
 		}
 
-		// If product stock status isn't allowed, stopping indexing
-    if ( ! in_array( $product->get_stock_status(), $this->_wp_allowed_product_statuses ) ) {
-			return;
+		// If product status isn't allowed, stopping indexing
+    if ( ! in_array( $product->get_status(), $this->_wp_allowed_product_statuses ) ) {
+			throw New Exception( __( 'Product status is not allowed', 'sha-wc2el' ) );
+
 		}
 
     $params = $this->_elastic_settings_index;
@@ -254,7 +332,8 @@ class SHA_Wc_To_Elastic {
   public function reindex_all_elastic_items() {
 
     try {
-      if ( $total_products_for_reindex = $this->total_products_for_reindex() ) {
+			$total_products_for_reindex = $this->total_products_for_reindex();
+      if ( $total_products_for_reindex ) {
 
         $client = $this->get_elastic_connection();
 
@@ -291,7 +370,7 @@ class SHA_Wc_To_Elastic {
 
     $params = array();
 
-    sha_wc2el_product_image_size_type = apply_filters( 'sha_wc2el_product_image_size_type', 'single' );
+    $product_size_type = apply_filters( 'sha_wc2el_product_size_type', 'single' );
 
     $args = array(
       'status'        => $this->_wp_allowed_product_statuses,
@@ -305,14 +384,11 @@ class SHA_Wc_To_Elastic {
     foreach ( $products->products as $product ) {
 
       // Add only instock products, if checkbox checked
-      if ( ( $product->get_manage_stock() == 1 )
-      			&& ( $product->get_stock_status() == 'outofstock' )
-      ) {
+      if ( ( $product->get_manage_stock() == 1 ) && ( $product->get_stock_status() == 'outofstock' ) ) {
         continue;
       }
 
-      $product_image = ( $product->get_image_id() )
-      	? wp_get_attachment_image_url( $product->get_image_id(), sha_wc2el_product_image_size_type ) : '';
+      $product_image = ( $product->get_image_id() ) ? wp_get_attachment_image_url( $product->get_image_id(), $product_size_type ) : '';
 
       $params['data']['body'][] = array(
         'index' => array(
@@ -336,30 +412,28 @@ class SHA_Wc_To_Elastic {
   // Elastic Search Connector
   public function get_elastic_connection() {
 
-    require dirname( __FILE__ ) . '/vendor/autoload.php';
-
 		if ( ! $this->akne( $this->_elastic_settings, array( 'host' ) ) ) {
-			WP_CLI::error(
-				__( 'Can\'t connect to Elastic. Host is not defined. Add WC2EL_CREDENTIALS to wp-config.php or use [sha_wc2el_elastic_settings] filter', 'sha-wc2el' )
-			);
+			WP_CLI::error( __( 'Can\'t connect to Elastic. Host is not defined. Add WC2EL_CREDENTIALS to wp-config.php or use [sha_wc2el_elastic_settings] filter', 'sha-wc2el' ) );
 		}
 
-    try {
-      $client = ClientBuilder::create()->setHosts( $this->_elastic_settings['host'] )->build();
-    } catch ( Exception $e ) {
-        throw New Exception( 'Can\'t connect to Elastic Search. Error: ' . $e->getMessage() );
-    }
+		if ( ! isset( $this->_client ) ) {
+	    require dirname( __FILE__ ) . '/vendor/autoload.php';
+			try {
+				$client = ClientBuilder::create()->setHosts( $this->_elastic_settings['host'] )->build();
+				$this->_elastic_client = $client;
+			} catch ( Exception $e ) {
+				throw New Exception( $e->getMessage() );
+			}
+		}
 
-    return $client;
+		return $this->_elastic_client;
   }
 
   // WP_CLI processor
   public function wp_cli( $args, $assoc_args ) {
 
     if ( ! in_array( $args[0], array( 'product', 'index' ) ) ) {
-      WP_CLI::error(
-      	__( 'Unknown argument. See \'wp help wc2el\' for supported arguments', 'sha-wc2el' )
-      );
+      WP_CLI::error( __( 'Unknown argument. See \'wp help wc2el\' for supported arguments', 'sha-wc2el' ) );
     }
 
     $client = $this->get_elastic_connection();
@@ -368,12 +442,15 @@ class SHA_Wc_To_Elastic {
 
       case 'index':
                   
-        if (
-        			! isset( $args[1] )
-							|| ! in_array( $args[1], array( 'reindex', 'stat', 'rebuild' ) )
-				) {
+        if ( ! isset( $args[1] ) || ! in_array( $args[1], $this->_allowed_index_actions ) ) {
+
+					$index_actions = $this->get_actions_with_brackets( $this->_allowed_index_actions );
+
           WP_CLI::error(
-          	__( 'You should provide extra [stat], [reindex] or [rebuild] argument', 'sha-wc2el' )
+          	sprintf(
+          		__( 'You should provide an extra %s argument', 'sha-wc2el' ),
+          		$index_actions,
+          	)
           );
         }
 
@@ -429,20 +506,24 @@ class SHA_Wc_To_Elastic {
           	break;
           
           case 'reindex':
-            if ( $total_products_for_reindex = $this->total_products_for_reindex() ) {
 
-              $progress = WP_CLI\Utils\make_progress_bar(
-              	__( 'Reindex Progress', 'sha-wc2el' ),
-              	$total_products_for_reindex['pages']
-              );
+          	$total_products_for_reindex = $this->total_products_for_reindex();
+
+            if ( $total_products_for_reindex ) {
+
+              $progress = WP_CLI\Utils\make_progress_bar( __( 'Reindex Progress', 'sha-wc2el' ), $total_products_for_reindex['pages'] );
           
               for ( $i = 0; $i < $total_products_for_reindex['pages']; $i++ ) {
+
                 $bulk_data = $this->get_products_and_prepare_bulk_data( $i );
 
                 //Bulk add data to Elastic Search index
                 if ( ! empty( $bulk_data['data']['body'] ) ) {
+
                   $response = $client->bulk( $bulk_data['data'] );
+
                   foreach ( $response['items'] as $item ) {
+
                     if ( isset( $item['index']['error'] ) ) {
                       throw New Exception(
                         sprintf(
@@ -458,21 +539,61 @@ class SHA_Wc_To_Elastic {
                 }
               }
               $progress->finish();
+
               update_option( $this->_prefix . 'last_reindex_date', time() );
+
               WP_CLI::success( __( 'Reindex completed', 'sha-wc2el' ) );
             }          
           	break;
           
-          case 'rebuild':
+          case 'create':
+
             try {
+
               $this->create_index();
+
+              WP_CLI::success( __(	'Build completed. Start reindex [ wp wc2el index reindex ] to add products to index', 'sha-wc2el' ) );
+            } catch ( Exception $e ) {
+              WP_CLI::error(
+              	sprintf(
+              		__( 'Can\'t build index [%s]. Elastic Error: %s', 'sha-wc2el' ),
+              		$this->_elastic_settings['index'],
+              		$e->getMessage()
+              	)
+              );
+            }
+          	break;
+
+          case 'delete':
+
+            try {
+
+              $this->delete_index();
+
               WP_CLI::success(
-              	__(	'Rebuild completed. Start reindex [ wp wc2el index reindex ] to add products to index', 'sha-wc2el' )
+              	__(	'Index deleted successfully.', 'sha-wc2el' )
               );
             } catch ( Exception $e ) {
               WP_CLI::error(
               	sprintf(
-              		__( 'Can\'t rebuild index [%s]. Elastic Error: %s', 'sha-wc2el' ),
+              		__( 'Can\'t delete index [%s]. Elastic Error: %s', 'sha-wc2el' ),
+              		$this->_elastic_settings['index'],
+              		$e->getMessage()
+              	)
+              );
+            }
+          	break;
+
+          case 'update':
+            try {
+
+              $this->modify_index();
+
+              WP_CLI::success( __(	'Update completed. Start reindex [ wp wc2el index reindex ] to add products to index', 'sha-wc2el' ) );
+            } catch ( Exception $e ) {
+              WP_CLI::error(
+              	sprintf(
+              		__( 'Can\'t update index [%s]. Elastic Error: %s', 'sha-wc2el' ),
               		$this->_elastic_settings['index'],
               		$e->getMessage()
               	)
@@ -485,24 +606,30 @@ class SHA_Wc_To_Elastic {
 
       case 'product':
 
-        if ( ! in_array( $args[1], array( 'add', 'stat', 'delete' ) ) ) {
+        if ( ! in_array( $args[1], $this->_allowed_product_actions ) ) {
+
+					$product_actions = $this->get_actions_with_brackets( $this->_allowed_product_actions );					
+
           WP_CLI::error(
-          	__( 'You should provide extra [add], [stat] or [delete] argument', 'sha-wc2el' )
+          	sprintf(
+          		__( 'You should provide an extra %s argument with productID', 'sha-wc2el' ),
+          		$product_actions,
+          	)
           );
           break;
         }
 
         if ( ! isset( $args[2] )  ) {
           WP_CLI::error(
-          	__( 'You should pass product id as third argument.', 'sha-wc2el' )
+          	__( 'You should pass productID as third argument.', 'sha-wc2el' )
           );
           break;
         }
 
-        if ( ! $product = wc_get_product( $args[2] ) ) {
-          WP_CLI::error(
-          	__( 'Product with given id not found', 'sha-wc2el' )
-          );
+				$product = wc_get_product( $args[2] );
+
+        if ( ! $product ) {
+          WP_CLI::error( __( 'Product with given ID not found', 'sha-wc2el' ) );
           break;
         }
 
@@ -514,6 +641,7 @@ class SHA_Wc_To_Elastic {
             $params['id'] = $args[2];
 
             try {
+
               $response = $client->get( $params );
 
 							// Size of label cell in output table
@@ -583,7 +711,9 @@ class SHA_Wc_To_Elastic {
             $params['id'] = $args[2];
 
             try {
+
               $client->delete( $params );
+
               WP_CLI::success(
               	sprintf(
               		__( 'Product [%s] deleted from index [%s]', 'sha-wc2el' ),
@@ -605,7 +735,9 @@ class SHA_Wc_To_Elastic {
           case 'add':
             
             try {
+
               $this->reindex_single_item( $args[2], $product );
+
               WP_CLI::success(
               	sprintf(
               		__( 'Product [%s] added/updated to index [%s]', 'sha-wc2el' ),
@@ -616,7 +748,7 @@ class SHA_Wc_To_Elastic {
             } catch( Exception $e ) {
               WP_CLI::error(
               	sprintf(
-              		__( 'Can\'t add product [%s]. Elastic Error: %s', 'sha-wc2el' ),
+              		__( 'Can\'t add product [%s]. Error: %s', 'sha-wc2el' ),
               		$product->get_name(),
               		$e->getMessage()
               	)
@@ -711,7 +843,6 @@ class SHA_Wc_To_Elastic {
 				$message->error->type,
 				$message->error->reason
 			);
-      throw New Exception ();
     }
 
     return $index_stat;
@@ -720,36 +851,21 @@ class SHA_Wc_To_Elastic {
   // Get product extra fields and prepare for put in Elastic Search
   private function get_product_fields( $product ) {
 
-		// Depending on product type get correct price
-    switch ( $product->get_type() ) {
-      case 'variable':
-        $product_price = (float)$product->get_variation_price( 'max' );
-        $product_sale_price = (float)$product->get_variation_price( 'min' );
-      	break;
-      
-      default:
-        $product_price = (float)$product->get_price();
-        $product_sale_price = (float)$product->get_sale_price();
-      	break;
-    }
-
-    $current_price = ( $product_sale_price == 0 ) ?
-    								 $product_price : min( $product_price, $product_sale_price );
+		$product_id = $product->get_id();
 
     $product_fields = array(
-      'id'                => $product->get_id(),
+      'id'                => $product_id,
       'parent_id'         => $product->get_parent_id(),
-      'link'              => get_the_permalink( $product->get_id() ),
+      'link'              => get_the_permalink( $product_id ),
       'add_to_cart_link'  => $product->add_to_cart_url(),
       'name'              => $product->get_name(),
       'product_type'      => $product->get_type(),
       'desc'              => $product->get_description(),
       'short_desc'        => $product->get_short_description(),
       'image'             => $product->get_image(),
-      'category'          => wc_get_product_cat_ids( $product->get_id() ),
-      'current_price'     => $current_price,
-      'price'             => $product_price,
-      'sale_price'        => $product_sale_price,
+      'category'          => wc_get_product_cat_ids( $product_id ),
+      'price'             => (float)$product->get_price(),
+      'sale_price'        => (float)$product->get_sale_price(),
       'rating'            => (float)$product->get_average_rating(),
       'stock'             => ( $product->get_stock_status() == 'instock' ) ? true : false,
       'sku'               => $product->get_sku(),
@@ -775,7 +891,9 @@ class SHA_Wc_To_Elastic {
       'paginate'      => true
     );
 
-    if ( $products = wc_get_products( $args ) ) {
+		$products = wc_get_products( $args );
+
+    if ( $products ) {
       return array(
         'total' => $products->total,
         'pages' => $products->max_num_pages
@@ -785,7 +903,7 @@ class SHA_Wc_To_Elastic {
     return;
   }
 
-  // Print cli index stat row
+  // Print cli stat line
   // Line contain key and value in ElasticSearch index
   // By default, key cell fit 45 chars, value cell fit 45 chars
 
@@ -845,12 +963,29 @@ class SHA_Wc_To_Elastic {
         
     return true;
   }
+
+  // Add brackets around actions values and or before last element
+  private function get_actions_with_brackets( $actions ) {
+
+		if ( ! is_array( $actions ) || empty( $actions ) ) {
+			return;
+		}
+
+		if ( count( $actions ) == 1 ) {
+			return '[' . $actions[0] . ']';
+		}
+
+		array_walk( $actions, function ( &$v ) { $v = '[' . $v . ']'; } );
+		$last_action = array_pop( $actions );
+
+		return sprintf( __( '%s or %s', 'sha-wc2el' ), implode( ', ', $actions ), $last_action );
+	}
 }
 
-// Init module singleton
+// Init module instance
 function init_wc2el_module() {
 
-  return SHA_Wc_To_Elastic::getInstance();
+  return SHA_WC_To_Elastic::getInstance();
 }
 
 add_action( 'init', 'init_wc2el_module', 100 );
