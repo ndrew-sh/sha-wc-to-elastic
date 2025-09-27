@@ -1,0 +1,210 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: WooCommerce To Elastic Product Indexer\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-09-08 20:51+0000\n"
+"PO-Revision-Date: 2025-09-08 21:03+0000\n"
+"Last-Translator: \n"
+"Language-Team: Русский\n"
+"Language: ru_RU\n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10 >= 2 && "
+"n%10<=4 &&(n%100<10||n%100 >= 20)? 1 : 2);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: Loco https://localise.biz/\n"
+"X-Loco-Version: 2.8.0; wp-6.8.2; php-8.2.29\n"
+"X-Domain: sha-wc2el"
+
+#: sha-wc-to-elastic.php:118
+msgid "Test Elastic connection. No extra args"
+msgstr ""
+
+#: sha-wc-to-elastic.php:120
+msgid "wp wc2el test"
+msgstr ""
+
+#: sha-wc-to-elastic.php:129
+msgid "Index actions: stat, create, delete, update"
+msgstr "Возможные действия с индексом: stat, create, delete, update"
+
+#: sha-wc-to-elastic.php:135
+#, php-format
+msgid "Type of action with index. Allowed values: %s"
+msgstr ""
+
+#: sha-wc-to-elastic.php:143
+msgid "wp wc2el index create"
+msgstr ""
+
+#: sha-wc-to-elastic.php:152
+msgid "CLI for WooCommerce To Elastic plugin"
+msgstr ""
+
+#: sha-wc-to-elastic.php:158
+#, php-format
+msgid "Type of action with product. Allowed values: %s"
+msgstr ""
+
+#: sha-wc-to-elastic.php:167
+msgid "Product ID"
+msgstr ""
+
+#: sha-wc-to-elastic.php:173
+msgid "wp wc2el product add 1012"
+msgstr ""
+
+#: sha-wc-to-elastic.php:183
+msgid "Connected to Elasticsearch: "
+msgstr "Успешно соединен с Elasticsearch:"
+
+#: sha-wc-to-elastic.php:187
+#, php-format
+msgid "Can't connect to Elastic. Elastic Error: %s"
+msgstr ""
+
+#: sha-wc-to-elastic.php:201
+#, php-format
+msgid "You should provide an extra [%s] argument"
+msgstr "Вы должны передать один из аргументов  [%s]"
+
+#: sha-wc-to-elastic.php:214
+#, php-format
+msgid "Can't get stat for index [%s]. Index not exists."
+msgstr ""
+
+#: sha-wc-to-elastic.php:227
+msgid "Index Name"
+msgstr "Имя индекса"
+
+#: sha-wc-to-elastic.php:231
+msgid "Products in index"
+msgstr "Товаров в индексе"
+
+#: sha-wc-to-elastic.php:235
+msgid "Index Size"
+msgstr "Размер индекса"
+
+#: sha-wc-to-elastic.php:239
+msgid "Last Full Index"
+msgstr "Дата последней индексации"
+
+#: sha-wc-to-elastic.php:248
+#, php-format
+msgid "Can't get stat for index [%s]"
+msgstr ""
+
+#: sha-wc-to-elastic.php:262
+msgid ""
+"Index created. Start indexing [ wp wc2el index index ] to add products to "
+"index"
+msgstr ""
+"Индекс создан. Запустите индексацию товаров [ wp wc2el index index ] чтобы "
+"добавить их в индекс"
+
+#: sha-wc-to-elastic.php:266
+#, php-format
+msgid "Can't create index [%s]. Index already exists"
+msgstr ""
+
+#: sha-wc-to-elastic.php:275
+#, php-format
+msgid "Can't build index [%s]. Elastic Error: %s"
+msgstr ""
+
+#: sha-wc-to-elastic.php:292
+msgid "Index deleted successfully."
+msgstr "Индекс успешно удален"
+
+#: sha-wc-to-elastic.php:297
+#, php-format
+msgid "Can't delete index [%s]. Index not exists"
+msgstr ""
+
+#: sha-wc-to-elastic.php:305
+#, php-format
+msgid "Can't delete index [%s]. Elastic Error: %s"
+msgstr ""
+
+#: sha-wc-to-elastic.php:319
+#, php-format
+msgid "Can't indexing products. Elastic Error: %s"
+msgstr ""
+
+#: sha-wc-to-elastic.php:334
+#, php-format
+msgid "You should provide an extra [%s] argument with productID"
+msgstr ""
+
+#: sha-wc-to-elastic.php:342
+msgid "You should pass productID as second positional argument."
+msgstr ""
+
+#: sha-wc-to-elastic.php:369
+#, php-format
+msgid "Can't get stat for product [%d]. Elastic Error: %s"
+msgstr ""
+
+#: sha-wc-to-elastic.php:383
+msgid "Product with given ID not found"
+msgstr ""
+
+#: sha-wc-to-elastic.php:394
+#, php-format
+msgid "Product [%s] indexed successfully."
+msgstr ""
+
+#: sha-wc-to-elastic.php:401
+#, php-format
+msgid "Can't add product [%s]. Elastic Error: %s"
+msgstr ""
+
+#: sha-wc-to-elastic.php:417
+msgid "Product with ID [%d] deleted successfully."
+msgstr ""
+
+#: sha-wc-to-elastic.php:424
+#, php-format
+msgid "Can't delete product with ID [%d]. Elastic Error: %s"
+msgstr ""
+
+#: sha-wc-to-elastic.php:531
+msgid "Product load failed"
+msgstr ""
+
+#: sha-wc-to-elastic.php:536
+msgid "Product type is not allowed"
+msgstr ""
+
+#: sha-wc-to-elastic.php:541
+msgid "Product status is not allowed"
+msgstr ""
+
+#: sha-wc-to-elastic.php:608
+msgid "Indexing products"
+msgstr "Индексирую товары"
+
+#: sha-wc-to-elastic.php:715
+#, php-format
+msgid "Error while sending batch (page %1$d): %2$s"
+msgstr ""
+
+#: sha-wc-to-elastic.php:730
+#, php-format
+msgid ""
+"Indexing completed. Total: %1$d (created: %2$d, updated: %3$d, errors: %4$d)"
+msgstr ""
+"Индексация завершена. Всего обработано %1$d записей (создано: %2$d, "
+"обновлено: %3$d, обработано с ошибками: %4$d)"
+
+#. Name of the plugin
+msgid "WooCommerce To Elastic Product Indexer"
+msgstr ""
+
+#. Description of the plugin
+msgid "WooCommerce Products to Elastic Search Indexer (WC2EL)"
+msgstr ""
+
+#. Author of the plugin
+msgid "Andrew Sh"
+msgstr ""
